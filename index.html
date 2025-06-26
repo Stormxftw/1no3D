@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Uno3D - Multiplayer Card Game</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
+</head>
+<body>
+    <div id="app">
+        <!-- Main Menu Screen -->
+        <div id="main-menu" class="screen active">
+            <div class="menu-container">
+                <h1>Uno3D</h1>
+                <div class="menu-buttons">
+                    <button id="create-room-btn" class="menu-btn">Create Room</button>
+                    <button id="join-room-btn" class="menu-btn">Join Room</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Create Room Screen -->
+        <div id="create-room" class="screen">
+            <div class="form-container">
+                <h2>Create New Room</h2>
+                <div class="form-group">
+                    <label for="player-name">Your Name:</label>
+                    <input type="text" id="player-name" placeholder="Enter your name" maxlength="20">
+                </div>
+                <div class="form-group">
+                    <label for="room-name">Room Name:</label>
+                    <input type="text" id="room-name" placeholder="Enter room name" maxlength="30">
+                </div>
+                <div class="form-group">
+                    <label>Choose Avatar Color:</label>
+                    <div class="color-picker">
+                        <div class="color-option" data-color="#FF6B6B" style="background-color: #FF6B6B;"></div>
+                        <div class="color-option" data-color="#4ECDC4" style="background-color: #4ECDC4;"></div>
+                        <div class="color-option" data-color="#45B7D1" style="background-color: #45B7D1;"></div>
+                        <div class="color-option" data-color="#96CEB4" style="background-color: #96CEB4;"></div>
+                        <div class="color-option" data-color="#FFEAA7" style="background-color: #FFEAA7;"></div>
+                        <div class="color-option" data-color="#DDA0DD" style="background-color: #DDA0DD;"></div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Avatar Image (Optional):</label>
+                    <input type="text" id="giphy-search" placeholder="Search Giphy for avatar...">
+                    <button id="search-giphy-btn">Search</button>
+                    <div id="giphy-results"></div>
+                </div>
+                <div class="form-buttons">
+                    <button id="create-room-confirm-btn" class="btn-primary">Create Room</button>
+                    <button id="back-from-create-btn" class="btn-secondary">Back</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Join Room Screen -->
+        <div id="join-room" class="screen">
+            <div class="form-container">
+                <h2>Join Room</h2>
+                <div class="form-group">
+                    <label for="join-player-name">Your Name:</label>
+                    <input type="text" id="join-player-name" placeholder="Enter your name" maxlength="20">
+                </div>
+                <div class="form-group">
+                    <label for="room-code">Room Code:</label>
+                    <input type="text" id="room-code" placeholder="Enter room code" maxlength="6">
+                </div>
+                <div class="form-group">
+                    <label>Choose Avatar Color:</label>
+                    <div class="color-picker" id="join-color-picker">
+                        <div class="color-option" data-color="#FF6B6B" style="background-color: #FF6B6B;"></div>
+                        <div class="color-option" data-color="#4ECDC4" style="background-color: #4ECDC4;"></div>
+                        <div class="color-option" data-color="#45B7D1" style="background-color: #45B7D1;"></div>
+                        <div class="color-option" data-color="#96CEB4" style="background-color: #96CEB4;"></div>
+                        <div class="color-option" data-color="#FFEAA7" style="background-color: #FFEAA7;"></div>
+                        <div class="color-option" data-color="#DDA0DD" style="background-color: #DDA0DD;"></div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Avatar Image (Optional):</label>
+                    <input type="text" id="join-giphy-search" placeholder="Search Giphy for avatar...">
+                    <button id="join-search-giphy-btn">Search</button>
+                    <div id="join-giphy-results"></div>
+                </div>
+                <div class="form-buttons">
+                    <button id="join-room-confirm-btn" class="btn-primary">Join Room</button>
+                    <button id="back-from-join-btn" class="btn-secondary">Back</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Game Lobby Screen -->
+        <div id="game-lobby" class="screen">
+            <div class="lobby-container">
+                <div class="lobby-header">
+                    <h2 id="lobby-room-name">Room Name</h2>
+                    <div class="room-code">
+                        <span>Room Code: </span>
+                        <span id="lobby-room-code">ABCDEF</span>
+                        <button id="copy-code-btn">Copy</button>
+                    </div>
+                </div>
+                
+                <div class="lobby-content">
+                    <div class="players-section">
+                        <h3>Players</h3>
+                        <div id="players-list"></div>
+                    </div>
+                    
+                    <div class="settings-section" id="lobby-settings">
+                        <h3>Game Settings</h3>
+                        <div class="setting-group">
+                            <label for="max-players">Max Players:</label>
+                            <select id="max-players">
+                                <option value="2">2</option>
+                                <option value="3">3</option>
+                                <option value="4" selected>4</option>
+                                <option value="6">6</option>
+                                <option value="8">8</option>
+                            </select>
+                        </div>
+                        <div class="setting-group">
+                            <label for="starting-cards">Starting Cards:</label>
+                            <select id="starting-cards">
+                                <option value="5">5</option>
+                                <option value="7" selected>7</option>
+                                <option value="10">10</option>
+                            </select>
+                        </div>
+                        <div class="setting-group">
+                            <label>
+                                <input type="checkbox" id="stacking-enabled" checked>
+                                Allow Card Stacking
+                            </label>
+                        </div>
+                        <div class="setting-group">
+                            <label>
+                                <input type="checkbox" id="jump-in-enabled">
+                                Allow Jump-in
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="lobby-actions">
+                    <button id="start-game-btn" class="btn-primary">Start Game</button>
+                    <button id="leave-room-btn" class="btn-secondary">Leave Room</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Game Screen -->
+        <div id="game-screen" class="screen">
+            <div id="game-ui">
+                <div class="game-header">
+                    <div class="current-player">
+                        <span>Current Turn: </span>
+                        <span id="current-player-name">Player 1</span>
+                    </div>
+                    <div class="game-info">
+                        <span>Cards Left: </span>
+                        <span id="deck-count">108</span>
+                    </div>
+                </div>
+                
+                <div class="game-actions">
+                    <button id="draw-card-btn" class="game-btn">Draw Card</button>
+                    <button id="uno-btn" class="game-btn uno-btn">UNO!</button>
+                </div>
+            </div>
+            
+            <!-- 3D Canvas -->
+            <canvas id="game-canvas"></canvas>
+            
+            <!-- Player's Hand -->
+            <div id="player-hand">
+                <h4>Your Cards</h4>
+                <div id="hand-cards"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
