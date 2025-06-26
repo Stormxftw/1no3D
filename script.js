@@ -235,38 +235,291 @@ function copyRoomCode() {
     });
 }
 
-// Three.js setup for 3D game
-function initGame3D() {
-    const canvas = document.getElementById('game-canvas');
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(75, canvas.clientWidth / canvas.clientHeight, 0.1, 1000);
-    const renderer = new THREE.WebGLRenderer({ canvas: canvas });
+// Game Logic Integration
+let currentGame = null;
+let currentPlayerId = 0;
+let selectedCard = null;
+let colorSelectionMode = false;
+let gameListener = null;
+
+// 2D Game Setup
+function initGame2D() {
+    // Setup game state and Firebase listeners
+    startUnoGame();
     
-    renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+    console.log('UNO 2D Multiplayer Game initialized!');
+}
+
+// Start UNO game with current room settings
+function startUnoGame() {
+    if (!gameState.currentRoom) return;
     
-    // Add some basic lighting
-    const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
-    scene.add(ambientLight);
+    // Get room data to determine player count and settings
+    database.ref('rooms/' + gameState.currentRoom).once('value')
+        .then(snapshot => {
+            if (snapshot.exists()) {
+                const roomData = snapshot.val();
+                const playerCount = Object.keys(roomData.players || {}).length;
+                const startingCards = roomData.settings.startingCards || 7;
+                
+                // Initialize game logic
+                currentGame = new UnoGameLogic(playerCount, startingCards);
+                currentGame.settings.stackingEnabled = roomData.settings.stackingEnabled;
+                currentGame.settings.jumpInEnabled = roomData.settings.jumpInEnabled;
+                
+                // Set player names from room data
+                const playerNames = Object.keys(roomData.players);
+                currentGame.players.forEach((player, index) => {
+                    if (playerNames[index]) {
+                        player.name = playerNames[index];
+                    }
+                });
+                
+                // Find current player ID
+                currentPlayerId = playerNames.indexOf(gameState.playerData.name);
+                
+                updateGameUI();
+                updateGame3D();
+            }
+        });
+}
+
+// Update 3D game visualization
+function updateGame3D() {
+    if (!currentGame || !gameTable3D) return;
     
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    directionalLight.position.set(10, 10, 5);
-    scene.add(directionalLight);
+    const gameStateData = currentGame.getGameState();
     
-    // Create a simple table
-    const tableGeometry = new THREE.CylinderGeometry(3, 3, 0.1, 32);
-    const tableMaterial = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
-    const table = new THREE.Mesh(tableGeometry, tableMaterial);
-    scene.add(table);
+    // Update each player's hand
+    gameStateData.players.forEach((player, index) => {
+        const isCurrentPlayer = index === currentPlayerId;
+        gameTable3D.updatePlayerHand(index, player.hand, isCurrentPlayer);
+    });
     
-    camera.position.set(0, 5, 5);
-    camera.lookAt(0, 0, 0);
-    
-    function animate() {
-        requestAnimationFrame(animate);
-        renderer.render(scene, camera);
+    // Update discard pile
+    if (gameStateData.topCard) {
+        gameTable3D.updateDiscardPile(gameStateData.topCard);
     }
     
-    animate();
+    // Highlight playable cards for current player
+    if (gameStateData.currentPlayer && gameStateData.currentPlayer.id === currentPlayerId) {
+        gameTable3D.highlightPlayableCards(gameStateData.currentPlayer.hand);
+    } else {
+        gameTable3D.clearHighlights();
+    }
+}
+
+// Update game UI elements
+function updateGameUI() {
+    if (!currentGame) return;
+    
+    const gameStateData = currentGame.getGameState();
+    
+    // Update current player display
+    document.getElementById('current-player-name').textContent = 
+        gameStateData.currentPlayer ? gameStateData.currentPlayer.name : 'Unknown';
+    
+    // Update deck count
+    document.getElementById('deck-count').textContent = gameStateData.remainingCards;
+    
+    // Update hand cards display (2D fallback)
+    updateHandDisplay(gameStateData.players[currentPlayerId]?.hand || []);
+    
+    // Enable/disable UNO button
+    const unoBtn = document.getElementById('uno-btn');
+    const currentPlayerData = gameStateData.players[currentPlayerId];
+    if (currentPlayerData && currentPlayerData.hand.length === 1 && !currentPlayerData.hasCalledUno) {
+        unoBtn.style.display = 'block';
+        unoBtn.classList.add('pulse');
+    } else {
+        unoBtn.style.display = 'none';
+        unoBtn.classList.remove('pulse');
+    }
+}
+
+// Update 2D hand display as fallback
+function updateHandDisplay(hand) {
+    const handContainer = document.getElementById('hand-cards');
+    handContainer.innerHTML = '';
+    
+    hand.forEach(card => {
+        const cardElement = document.createElement('div');
+        cardElement.className = 'card-2d';
+        cardElement.dataset.cardId = card.id;
+        cardElement.innerHTML = `
+            <div class="card-content" style="background-color: ${getCardColor(card)}">
+                <span class="card-value">${getCardDisplayText(card)}</span>
+            </div>
+        `;
+        
+        if (card.playable) {
+            cardElement.classList.add('playable');
+        }
+        
+        cardElement.addEventListener('click', () => playCard(card.id));
+        handContainer.appendChild(cardElement);
+    });
+}
+
+// Get card color for 2D display
+function getCardColor(card) {
+    const colorMap = {
+        'red': '#FF6B6B',
+        'blue': '#4ECDC4',
+        'green': '#96CEB4',
+        'yellow': '#FFEAA7',
+        'wild': '#2C2C2C'
+    };
+    return colorMap[card.color] || '#FFFFFF';
+}
+
+// Get card display text
+function getCardDisplayText(card) {
+    if (card.type === 'wild') {
+        return card.value === 'wild' ? 'WILD' : 'WILD +4';
+    }
+    if (card.type === 'action') {
+        const actionMap = {
+            'skip': 'SKIP',
+            'reverse': 'REV',
+            'draw_two': '+2'
+        };
+        return actionMap[card.value] || card.value;
+    }
+    return card.value;
+}
+
+// Setup mouse interaction for 3D cards
+function setupMouseInteraction(canvas) {
+    const mouse = new THREE.Vector2();
+    
+    canvas.addEventListener('click', (event) => {
+        const rect = canvas.getBoundingClientRect();
+        mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+        mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+        
+        if (colorSelectionMode) {
+            // Handle color selection for wild cards
+            handleColorSelection();
+        } else {
+            // Handle card selection
+            const cardId = gameTable3D.getCardAtPosition(mouse, gameCamera);
+            if (cardId) {
+                playCard(cardId);
+            }
+        }
+    });
+    
+    canvas.addEventListener('mousemove', (event) => {
+        const rect = canvas.getBoundingClientRect();
+        mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+        mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+        
+        // Handle card hover effects
+        const cardId = gameTable3D.getCardAtPosition(mouse, gameCamera);
+        // TODO: Implement hover effects
+    });
+}
+
+// Play a card
+function playCard(cardId) {
+    if (!currentGame || colorSelectionMode) return;
+    
+    const currentPlayer = currentGame.getCurrentPlayer();
+    if (currentPlayer.id !== currentPlayerId) {
+        alert('Not your turn!');
+        return;
+    }
+    
+    const card = currentPlayer.hand.find(c => c.id === cardId);
+    if (!card || !card.playable) {
+        alert('Cannot play this card!');
+        return;
+    }
+    
+    // Check if wild card requires color selection
+    if (card.type === 'wild') {
+        selectedCard = cardId;
+        showColorSelection();
+        return;
+    }
+    
+    // Play the card
+    const result = currentGame.playCard(currentPlayerId, cardId);
+    
+    if (result.success) {
+        updateGameUI();
+        updateGame3D();
+        
+        if (result.winner) {
+            alert(`${result.winner.name} wins the game!`);
+            // TODO: Handle game end
+        }
+    } else {
+        alert(result.message);
+    }
+}
+
+// Show color selection for wild cards
+function showColorSelection() {
+    colorSelectionMode = true;
+    // TODO: Implement color selection UI
+    // For now, just pick red as default
+    setTimeout(() => {
+        playWildCard('red');
+    }, 100);
+}
+
+// Play wild card with chosen color
+function playWildCard(chosenColor) {
+    if (!selectedCard) return;
+    
+    const result = currentGame.playCard(currentPlayerId, selectedCard, chosenColor);
+    
+    if (result.success) {
+        updateGameUI();
+        updateGame3D();
+        
+        if (result.winner) {
+            alert(`${result.winner.name} wins the game!`);
+        }
+    } else {
+        alert(result.message);
+    }
+    
+    selectedCard = null;
+    colorSelectionMode = false;
+}
+
+// Draw a card from deck
+function drawCardFromDeck() {
+    if (!currentGame) return;
+    
+    const result = currentGame.drawCard(currentPlayerId);
+    
+    if (result.success) {
+        updateGameUI();
+        updateGame3D();
+        
+        // Show message to player
+        if (result.canPlay) {
+            alert(result.message);
+        }
+    } else {
+        alert(result.message);
+    }
+}
+
+// Call UNO
+function callUno() {
+    if (!currentGame) return;
+    
+    const result = currentGame.callUno(currentPlayerId);
+    alert(result.message);
+    
+    if (result.success) {
+        updateGameUI();
+    }
 }
 
 // Event listeners
@@ -301,9 +554,13 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('start-game-btn').addEventListener('click', () => {
         if (gameState.isHost) {
             showScreen('game-screen');
-            initGame3D();
+            initGame2D();
         }
     });
+    
+    // Game actions
+    document.getElementById('draw-card-btn').addEventListener('click', drawCardFromDeck);
+    document.getElementById('uno-btn').addEventListener('click', callUno);
 });
 
 // Handle page unload

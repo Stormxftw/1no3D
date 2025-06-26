@@ -240,7 +240,146 @@ body, html {
     bottom: 0;
     left: 0;
     right: 0;
-    background: rgba(255, 255, 255, 0.95);
-    padding: 10px;
+    background: rgba(0, 0, 0, 0.8);
+    padding: 15px;
     text-align: center;
+    max-height: 200px;
+    overflow-x: auto;
+}
+
+#player-hand h4 {
+    color: white;
+    margin: 0 0 10px 0;
+}
+
+#hand-cards {
+    display: flex;
+    gap: 5px;
+    justify-content: center;
+    align-items: center;
+}
+
+.card-2d {
+    width: 50px;
+    height: 70px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.card-2d:hover {
+    transform: translateY(-10px);
+}
+
+.card-2d.playable {
+    box-shadow: 0 0 10px #00ff00;
+}
+
+.card-2d.playable:hover {
+    box-shadow: 0 0 15px #00ff00;
+}
+
+.card-content {
+    width: 100%;
+    height: 100%;
+    border-radius: 5px;
+    border: 2px solid #333;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: bold;
+    font-size: 12px;
+    text-align: center;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.7);
+}
+
+.game-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 20px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    margin-bottom: 10px;
+}
+
+.current-player {
+    font-size: 18px;
+    font-weight: bold;
+}
+
+.game-info {
+    font-size: 16px;
+}
+
+.game-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin: 10px 0;
+}
+
+.game-btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+#draw-card-btn {
+    background: #007bff;
+    color: white;
+}
+
+#draw-card-btn:hover {
+    background: #0056b3;
+}
+
+.uno-btn {
+    background: #ff4757 !important;
+    color: white;
+    animation: pulse 2s infinite;
+}
+
+.uno-btn:hover {
+    background: #ff3742 !important;
+}
+
+.pulse {
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    #game-canvas {
+        height: 300px;
+    }
+    
+    .game-header {
+        padding: 10px;
+        font-size: 14px;
+    }
+    
+    #player-hand {
+        padding: 10px;
+    }
+    
+    .card-2d {
+        width: 40px;
+        height: 56px;
+    }
+    
+    .card-content {
+        font-size: 10px;
+    }
 }
